@@ -1,0 +1,18 @@
+version: '3'
+
+services:
+  app:
+    image: python:3.11-slim
+    container_name: openai-image-playground
+    working_dir: /app
+    volumes:
+      - .:/app
+    ports:
+      - "7860:7860"
+    command: >
+      bash -c "pip install -r requirements.txt && 
+              python app.py --server_name=0.0.0.0"
+    restart: unless-stopped
+    # For improved security, you can provide API key as environment variable
+    # environment:
+    #   - OPENAI_API_KEY=your_api_key_here 
