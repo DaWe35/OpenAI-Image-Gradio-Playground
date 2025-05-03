@@ -41,7 +41,6 @@ def generate_image(prompt, api_key, model, quality, api_endpoint, custom_endpoin
     payload = {
         "prompt": prompt,
         "model": model,
-        "n": n,
         "quality": quality
     }
     
