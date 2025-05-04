@@ -61,24 +61,24 @@ def generate_image(prompt, api_key, model, quality, api_endpoint, custom_endpoin
         if "data" in result and len(result["data"]) > 0:
             if "url" in result["data"][0]:
                 images = [result["data"][i]["url"] for i in range(len(result["data"]))]
-                return images, ""
+                return images, gr.update(visible=False, value="")
             elif "b64_json" in result["data"][0]:
                 images = []
                 for i in range(len(result["data"])):
                     img_data = base64.b64decode(result["data"][i]["b64_json"])
                     img = Image.open(io.BytesIO(img_data))
                     images.append(img)
-                return images, ""
+                return images, gr.update(visible=False, value="")
         
-        return [], "No output received"
+        return [], gr.update(visible=True, value="No output received")
     except Exception as e:
         print(e, flush=True)
-        return [], str(e)
+        return [], gr.update(visible=True, value=str(e))
 
 def edit_image(image, mask, prompt, api_key, model, quality, api_endpoint, custom_endpoint):
     actual_endpoint = get_actual_endpoint(api_endpoint, custom_endpoint)
     if image is None:
-        return None, "Please upload an image to edit"
+        return None, gr.update(visible=True, value="Please upload an image to edit")
     
     headers = {
         "Authorization": f"Bearer {api_key}"
@@ -122,15 +122,15 @@ def edit_image(image, mask, prompt, api_key, model, quality, api_endpoint, custo
         
         if "data" in result and len(result["data"]) > 0:
             if "url" in result["data"][0]:
-                return result["data"][0]["url"], ""
+                return result["data"][0]["url"], gr.update(visible=False, value="")
             elif "b64_json" in result["data"][0]:
                 img_data = base64.b64decode(result["data"][0]["b64_json"])
                 img = Image.open(io.BytesIO(img_data))
-                return img, ""
+                return img, gr.update(visible=False, value="")
         
-        return None, "No output received"
+        return None, gr.update(visible=True, value="No output received")
     except Exception as e:
-        return None, str(e)
+        return None, gr.update(visible=True, value=str(e))
 
 def update_endpoint_visibility(choice):
     if choice == "Custom":
