@@ -21,22 +21,19 @@ def update_models(api_endpoint):
         if api_endpoint == "https://api.openai.com/v1/images/":
             # Only keep models that start with "openai/" when hitting the OpenAI endpoint
             filtered = [m.replace("openai/", "") for m in model_names if m.startswith("openai/")]  # list[str]
-            print('filtered', filtered, flush=True)
             return filtered
         else:
             # For ImageRouter or any other endpoint, expose *all* models as their raw names.
             # The UI can still allow the user to type custom values if needed.
-            print('model_names', model_names, flush=True)
             return model_names
     except Exception as e:
         print('error', e, flush=True)
         return []
 
-def generate_image(prompt, api_key, model, quality, api_endpoint, custom_endpoint):
-    # If using custom endpoint, override the api_endpoint
-    if api_endpoint == "Custom":
-        api_endpoint = custom_endpoint
-    
+def generate_image(prompt, api_key, model, quality, api_endpoint, custom_endpoint):    
+    print('generate_image', prompt, api_key, model, quality, api_endpoint, custom_endpoint, flush=True)
+    actual_endpoint = get_actual_endpoint(api_endpoint, custom_endpoint)
+    print('actual_endpoint', actual_endpoint, flush=True)
     n = 1
     payload = {
         "prompt": prompt,
@@ -51,36 +48,37 @@ def generate_image(prompt, api_key, model, quality, api_endpoint, custom_endpoin
     
     try:
         response = requests.post(
-            f"{api_endpoint}generations",
+            f"{actual_endpoint}/generations",
             headers=headers,
             json=payload
         )
         response.raise_for_status()
         
         result = response.json()
+
+        print(result, flush=True)
         
         if "data" in result and len(result["data"]) > 0:
             if "url" in result["data"][0]:
-                return [result["data"][i]["url"] for i in range(len(result["data"]))]
+                images = [result["data"][i]["url"] for i in range(len(result["data"]))]
+                return images, ""
             elif "b64_json" in result["data"][0]:
                 images = []
                 for i in range(len(result["data"])):
                     img_data = base64.b64decode(result["data"][i]["b64_json"])
                     img = Image.open(io.BytesIO(img_data))
                     images.append(img)
-                return images
+                return images, ""
         
-        return None
+        return [], "No output received"
     except Exception as e:
-        return str(e)
+        print(e, flush=True)
+        return [], str(e)
 
 def edit_image(image, mask, prompt, api_key, model, quality, api_endpoint, custom_endpoint):
-    # If using custom endpoint, override the api_endpoint
-    if api_endpoint == "Custom":
-        api_endpoint = custom_endpoint
-        
+    actual_endpoint = get_actual_endpoint(api_endpoint, custom_endpoint)
     if image is None:
-        return "Please upload an image to edit"
+        return None, "Please upload an image to edit"
     
     headers = {
         "Authorization": f"Bearer {api_key}"
@@ -114,7 +112,7 @@ def edit_image(image, mask, prompt, api_key, model, quality, api_endpoint, custo
     
     try:
         response = requests.post(
-            f"{api_endpoint}edits",
+            f"{actual_endpoint}/edits",
             headers=headers,
             files=files
         )
@@ -124,15 +122,15 @@ def edit_image(image, mask, prompt, api_key, model, quality, api_endpoint, custo
         
         if "data" in result and len(result["data"]) > 0:
             if "url" in result["data"][0]:
-                return result["data"][0]["url"]
+                return result["data"][0]["url"], ""
             elif "b64_json" in result["data"][0]:
                 img_data = base64.b64decode(result["data"][0]["b64_json"])
                 img = Image.open(io.BytesIO(img_data))
-                return img
+                return img, ""
         
-        return None
+        return None, "No output received"
     except Exception as e:
-        return str(e)
+        return None, str(e)
 
 def update_endpoint_visibility(choice):
     if choice == "Custom":
@@ -141,10 +139,11 @@ def update_endpoint_visibility(choice):
         return gr.update(visible=False)
 
 def get_actual_endpoint(choice, custom_endpoint):
+    print('get_actual_endpoint', choice, custom_endpoint, flush=True)
     if choice == "OpenAI":
-        return "https://api.openai.com/v1/images/"
+        return "https://api.openai.com/v1/images"
     elif choice == "ImageRouter":
-        return "https://ir-api.myqa.cc/v1/openai/images/"
+        return "https://ir-api.myqa.cc/v1/openai/images"
     else:  # Custom
         return custom_endpoint
 
@@ -163,21 +162,22 @@ with gr.Blocks(title="OpenAI Image Generator & Editor") as app:
             api_endpoint_choice = gr.Radio(
                 choices=["OpenAI", "ImageRouter", "Custom"],
                 label="API Endpoint",
-                value="OpenAI"
+                value="Custom" if os.environ.get("API_ENDPOINT", "") != "" else None
             )
         
         with gr.Row():
             custom_endpoint = gr.Textbox(
                 label="Custom API Endpoint", 
                 placeholder="Enter your custom API endpoint (e.g., https://your-api.com/v1/images/)",
-                visible=False
+                visible=os.environ.get("API_ENDPOINT", "") != "",
+                value=os.environ.get("API_ENDPOINT", "")
             )
         
         api_key = gr.Textbox(
-            label="OpenAI API Key", 
-            placeholder="Enter your OpenAI API key", 
+            label="API Key", 
+            placeholder="Enter your API key", 
             type="password",
-            value=os.environ.get("OPENAI_API_KEY", "")
+            value=os.environ.get("API_KEY", "")
         )
     
     with gr.Tab("Generate Images"):
@@ -242,13 +242,13 @@ with gr.Blocks(title="OpenAI Image Generator & Editor") as app:
     gen_button.click(
         fn=generate_image,
         inputs=[gen_prompt, api_key, gen_model, gen_quality, api_endpoint_choice, custom_endpoint],
-        outputs=[gen_output]
+        outputs=[gen_output, gen_error]
     )
     
     edit_button.click(
         fn=edit_image,
         inputs=[edit_image_input, edit_mask, edit_prompt, api_key, edit_model, edit_quality, api_endpoint_choice, custom_endpoint],
-        outputs=[edit_output]
+        outputs=[edit_output, edit_error]
     )
 
 if __name__ == "__main__":

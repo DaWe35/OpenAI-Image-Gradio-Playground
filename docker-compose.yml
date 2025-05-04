@@ -13,6 +13,6 @@ services:
       bash -c "pip install -r requirements.txt && 
               python app.py --server_name=0.0.0.0"
     restart: unless-stopped
-    # For improved security, you can provide API key as environment variable
-    # environment:
-    #   - OPENAI_API_KEY=your_api_key_here 
+    environment:
+      - API_KEY=${API_KEY}
+      - API_ENDPOINT=${API_ENDPOINT}
